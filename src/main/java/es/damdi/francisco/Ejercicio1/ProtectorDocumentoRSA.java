@@ -1,0 +1,104 @@
+package es.damdi.francisco.Ejercicio1;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import javax.crypto.Cipher;
+
+public class ProtectorDocumentoRSA {
+
+    public static void main(String[] args) {
+        // 1. Comprobación de los parámetros de línea de comandos
+        // Se necesitan 5 parámetros para los ficheros de entrada y salida
+        if (args.length < 5) {
+            System.out.println("Error de sintaxis. Uso correcto:");
+            System.out.println("java ProtectorDocumentoRSA <fichero_entrada> <fichero_cifrado_salida> <clave_publica_salida> <clave_privada_salida> <firma_salida>");
+            return;
+        }
+
+        String ficheroEntrada = args[0];
+        String ficheroCifrado = args[1];
+        String ficheroClavePublica = args[2];
+        String ficheroClavePrivada = args[3];
+        String ficheroFirma = args[4];
+
+        try {
+            // 2. Verificamos que el fichero de entrada existe
+            File fileIn = new File(ficheroEntrada);
+            if (!fileIn.exists()) {
+                System.err.println("Error: El fichero de entrada '" + ficheroEntrada + "' no existe.");
+                return;
+            }
+
+            // 3. Generación del par de claves RSA
+            System.out.println("Generando par de claves RSA...");
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048); // Tamaño seguro para la clave
+            KeyPair claves = keyGen.generateKeyPair();
+
+            PrivateKey clavePrivada = claves.getPrivate();
+            PublicKey clavePublica = claves.getPublic();
+
+            // Guardamos las claves en sus respectivos ficheros
+            guardarEnFichero(ficheroClavePublica, clavePublica.getEncoded());
+            guardarEnFichero(ficheroClavePrivada, clavePrivada.getEncoded());
+            System.out.println("Claves guardadas correctamente.");
+
+            // 4. Leer el contenido del fichero de entrada original
+            byte[] contenidoOriginal = leerDeFichero(ficheroEntrada);
+
+            // 5. Calcular la firma electrónica (Garantiza Autenticidad e Integridad)
+            // IMPORTANTE: La firma se hace sobre el documento ORIGINAL y usando la CLAVE PRIVADA
+            System.out.println("Generando firma digital...");
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initSign(clavePrivada);
+            signature.update(contenidoOriginal);
+            byte[] firmaBytes = signature.sign();
+
+            // Guardamos la firma en su fichero
+            guardarEnFichero(ficheroFirma, firmaBytes);
+            System.out.println("Firma guardada en: " + ficheroFirma);
+
+            // 6. Cifrar el contenido del fichero (Garantiza Confidencialidad)
+            // IMPORTANTE: Se cifra el documento usando la CLAVE PÚBLICA del receptor
+            System.out.println("Cifrando el documento...");
+            Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, clavePublica);
+            byte[] contenidoCifrado = cipher.doFinal(contenidoOriginal);
+
+            // Guardamos el contenido cifrado en su fichero
+            guardarEnFichero(ficheroCifrado, contenidoCifrado);
+            System.out.println("Documento cifrado guardado en: " + ficheroCifrado);
+
+            System.out.println("\n¡Proceso de la Parte 1 completado con éxito!");
+
+        } catch (Exception e) {
+            System.err.println("Ocurrió un error inesperado durante el proceso criptográfico.");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Método auxiliar para leer todos los bytes de un fichero.
+     */
+    private static byte[] leerDeFichero(String ruta) throws IOException {
+        try (FileInputStream fis = new FileInputStream(ruta)) {
+            return fis.readAllBytes();
+        }
+    }
+
+    /**
+     * Método auxiliar para escribir un array de bytes en un fichero.
+     */
+    private static void guardarEnFichero(String ruta, byte[] contenido) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(ruta)) {
+            fos.write(contenido);
+        }
+    }
+}
